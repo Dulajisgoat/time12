@@ -720,16 +720,22 @@
   .textarea::placeholder { color: var(--text-muted); }
   .dialog-input::placeholder, .palette-input::placeholder { color: var(--text-muted); }
 
-  /* Placeholder theming: light mode reads white against the moving stripe field,
-     dark mode stays on the same muted tone already used across the UI. */
-  html:not([data-theme="dark"]) .login-form-group input::placeholder,
+  /* Login placeholders stay white so they read against the WebGL aurora
+     backdrop; everywhere else defaults back to dark so "Untitled",
+     "The room is quiet. Begin.", "Search the shelves...", palette and
+     dialog inputs render dark in light mode. */
+  html:not([data-theme="dark"]) .login-form-group input::placeholder {
+    color: rgba(255, 255, 255, 0.94);
+    text-shadow: 0 1px 3px rgba(24, 18, 14, 0.22);
+  }
+
   html:not([data-theme="dark"]) .search-input::placeholder,
   html:not([data-theme="dark"]) .editor-title-input::placeholder,
   html:not([data-theme="dark"]) .textarea::placeholder,
   html:not([data-theme="dark"]) .dialog-input::placeholder,
   html:not([data-theme="dark"]) .palette-input::placeholder {
-    color: rgba(255, 255, 255, 0.94);
-    text-shadow: 0 1px 3px rgba(24, 18, 14, 0.22);
+    color: var(--text-muted);
+    text-shadow: none;
   }
 
   .editor-bottom-bar {
