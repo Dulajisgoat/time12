@@ -40,6 +40,18 @@
     --glass-sheen: rgba(230, 90, 10, 0.55);
     --glass-highlight: rgba(255, 255, 255, 0.5);
     --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+
+    /* Lighter "liquid glass" used across the in-app chrome (sidebar, top
+       bar, toolbar, cards) so the WebGL backdrop reads through it. */
+    --app-glass-bg: rgba(255, 250, 244, 0.6);
+    --app-glass-border: rgba(24, 18, 14, 0.13);
+    --app-glass-shadow: 0 8px 28px rgba(34, 24, 16, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+
+    /* Liquid Glass specular sheen — layered under the glass fill on the
+       app chrome (dock/tabs, shortcuts, dialogs, sidebar, top bar) */
+    --liquid-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.08) 35%, rgba(255, 255, 255, 0) 65%);
+    --liquid-pill-bg: rgba(255, 255, 255, 0.55);
+    --liquid-chip-bg: rgba(255, 255, 255, 0.42);
   }
 
   html[data-theme="dark"] {
@@ -65,6 +77,14 @@
     --glass-sheen: rgba(255, 255, 255, 0.35);
     --glass-highlight: rgba(255, 255, 255, 0.1);
     --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+
+    --app-glass-bg: rgba(15, 15, 15, 0.5);
+    --app-glass-border: rgba(255, 255, 255, 0.09);
+    --app-glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+
+    --liquid-sheen: linear-gradient(135deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.02) 35%, rgba(255, 255, 255, 0) 65%);
+    --liquid-pill-bg: rgba(255, 255, 255, 0.12);
+    --liquid-chip-bg: rgba(255, 255, 255, 0.08);
   }
 
   html, body {
@@ -160,9 +180,9 @@
   }
   .app-webgl {
     position: fixed; inset: 0; width: 100%; height: 100%;
-    z-index: 0; opacity: 0.06; pointer-events: none;
+    z-index: 0; opacity: 0.55; pointer-events: none;
   }
-  html[data-theme="dark"] .app-webgl { opacity: 0.1; }
+  html[data-theme="dark"] .app-webgl { opacity: 0.42; }
   .sidebar, .editor-area, .backdrop { position: relative; z-index: 1; }
   .login-screen::before, .login-screen::after {
     content: '';
@@ -380,10 +400,14 @@
     to   { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
   }
   .sidebar {
-    background: var(--surface); border-right: 1px solid var(--border);
+    background: var(--liquid-sheen), var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border-right: 1px solid var(--app-glass-border);
+    box-shadow: var(--app-glass-shadow);
     display: flex; flex-direction: column; height: 100vh; height: 100dvh;
     overflow-y: auto; overflow-x: hidden;
-    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin 0.3s ease, opacity 0.3s ease, border 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), margin 0.3s ease, opacity 0.3s ease, border 0.3s ease, background 0.4s ease;
   }
   .sidebar.hidden { margin-left: -300px; opacity: 0; border-right: 0; pointer-events: none; }
   .sidebar.notes-collapsed .sidebar-search,
@@ -492,7 +516,10 @@
     padding: 14px 24px; border-top: 2px solid var(--molding);
     display: flex; flex-direction: column; gap: 10px;
     font-size: 11px; color: var(--text-muted);
-    position: sticky; bottom: 0; background: var(--surface); z-index: 2;
+    position: sticky; bottom: 0; background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    z-index: 2;
     margin-top: auto;
   }
   .footer-row { display: flex; justify-content: space-between; align-items: center; }
@@ -511,20 +538,30 @@
   }
 
   /* ========== Editor ========== */
-  .editor-area { position: relative; display: flex; flex-direction: column; height: 100vh; height: 100dvh; background: var(--bg); }
+  .editor-area { position: relative; display: flex; flex-direction: column; height: 100vh; height: 100dvh; background: var(--app-glass-bg); transition: background 0.4s ease; }
   .editor-top-bar {
     position: absolute; top: 0; left: 0; right: 0; height: 56px;
     display: grid;
     grid-template-columns: 1fr auto 1fr; 
     align-items: center;
-    padding: 0 32px; background: var(--bg); z-index: 10;
-    border-bottom: 1px solid var(--border); gap: 12px;
+    padding: 0 32px;
+    background: var(--liquid-sheen), var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+    z-index: 10;
+    border-bottom: 1px solid var(--app-glass-border); gap: 12px;
   }
 
   .sidebar-tabs { display: flex; justify-content: center; flex: 1; min-width: 0; overflow: visible; justify-self: center; width: 100%; max-width: 360px; }
   .tabs-container {  
-    display: flex; align-items: center; gap: 6px; padding: 6px; background: var(--surface-2);
+    display: flex; align-items: center; gap: 6px; padding: 6px;
+    background: var(--liquid-sheen), var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--app-glass-border);
+    box-shadow: var(--app-glass-shadow);
     border-radius: 999px; flex-wrap: nowrap; width: 100%; justify-content: center;
+    transition: background 0.4s ease, border-color 0.4s ease;
   }  
   .tab-item {  
     padding: 7px 24px; border-radius: 999px; color: var(--text-muted);
@@ -532,8 +569,11 @@
     user-select: none; text-align: center; white-space: nowrap;
   }  
   .tab-item.active {  
-    background: var(--bg); color: var(--text); font-weight: 600;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    background: var(--liquid-sheen), var(--liquid-pill-bg);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    backdrop-filter: blur(10px) saturate(160%);
+    color: var(--text); font-weight: 600;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }  
   .tab-item:hover:not(.active) { color: var(--text); }
 
@@ -550,8 +590,11 @@
   
   .dropdown-menu {
     position: absolute; top: calc(100% + 6px); left: 0; right: 0;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); z-index: 20;
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--app-glass-border);
+    border-radius: var(--radius-lg); box-shadow: var(--app-glass-shadow), var(--shadow-soft); z-index: 20;
     display: none; flex-direction: column; overflow: hidden; padding: 4px;
   }
   .tabs-dropdown.open .dropdown-menu { display: flex; }
@@ -600,8 +643,11 @@
   .custom-dropdown-wrapper { position: relative; display: inline-flex; }
   .custom-dropdown-menu {
     position: absolute; top: calc(100% + 6px); right: 0; min-width: 160px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-soft);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--app-glass-border);
+    border-radius: var(--radius-lg); box-shadow: var(--app-glass-shadow), var(--shadow-soft);
     z-index: 50; display: none; flex-direction: column; padding: 4px;
   }
   .custom-dropdown-wrapper.open .custom-dropdown-menu { display: flex; }
@@ -626,8 +672,11 @@
   
   .custom-select-menu {
     position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-soft);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+    border: 1px solid var(--app-glass-border);
+    border-radius: var(--radius-lg); box-shadow: var(--app-glass-shadow), var(--shadow-soft);
     z-index: 100; display: none; flex-direction: column; padding: 4px;
     max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
@@ -669,6 +718,19 @@
     caret-color: var(--accent);
   }
   .textarea::placeholder { color: var(--text-muted); }
+  .dialog-input::placeholder, .palette-input::placeholder { color: var(--text-muted); }
+
+  /* Placeholder theming: light mode reads white against the moving stripe field,
+     dark mode stays on the same muted tone already used across the UI. */
+  html:not([data-theme="dark"]) .login-form-group input::placeholder,
+  html:not([data-theme="dark"]) .search-input::placeholder,
+  html:not([data-theme="dark"]) .editor-title-input::placeholder,
+  html:not([data-theme="dark"]) .textarea::placeholder,
+  html:not([data-theme="dark"]) .dialog-input::placeholder,
+  html:not([data-theme="dark"]) .palette-input::placeholder {
+    color: rgba(255, 255, 255, 0.94);
+    text-shadow: 0 1px 3px rgba(24, 18, 14, 0.22);
+  }
 
   .editor-bottom-bar {
     position: absolute; bottom: 0; left: 0; right: 0;
@@ -676,12 +738,15 @@
     pointer-events: none; z-index: 10;
   }
   .editor-toolbar {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 4px; display: flex; gap: 2px; box-shadow: var(--shadow-soft);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid var(--app-glass-border); border-radius: var(--radius);
+    padding: 4px; display: flex; gap: 2px; box-shadow: var(--app-glass-shadow);
     pointer-events: auto; max-width: calc(100% - 48px); overflow-x: auto;
     transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
   }
-  .editor-toolbar:hover { box-shadow: var(--shadow-md), 0 12px 28px rgba(34, 24, 16, 0.1); transform: translateY(-2px); }
+  .editor-toolbar:hover { box-shadow: var(--app-glass-shadow), 0 12px 28px rgba(34, 24, 16, 0.1); transform: translateY(-2px); }
   .toolbar-group { display: flex; gap: 2px; padding-right: 4px; margin-right: 4px; border-right: 1px solid var(--border); }
   .toolbar-group:last-child { border-right: none; margin-right: 0; padding-right: 0; }
 
@@ -698,8 +763,10 @@
   .counter {
     position: absolute; right: 32px; bottom: 32px;
     font-size: 11px; color: var(--text-muted); display: flex; gap: 8px;
-    pointer-events: auto; background: var(--surface);
-    padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow-md);
+    pointer-events: auto; background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--app-glass-border); box-shadow: var(--app-glass-shadow);
   }
   .counter strong { color: var(--text); font-weight: 600; }
   .counter-sep { color: var(--text-muted); }
@@ -751,11 +818,14 @@
   @keyframes emptyFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 
   .table-wrapper {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    overflow: hidden; box-shadow: var(--shadow-md); animation: fadeInTab 0.4s ease;
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--app-glass-border); border-radius: var(--radius-lg);
+    overflow: hidden; box-shadow: var(--app-glass-shadow); animation: fadeInTab 0.4s ease;
     transition: box-shadow 0.25s ease;
   }
-  .table-wrapper:hover { box-shadow: var(--shadow-soft); }
+  .table-wrapper:hover { box-shadow: var(--app-glass-shadow), var(--shadow-soft); }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th {
     text-align: left; padding: 12px 16px; font-size: 11px;
@@ -811,9 +881,12 @@
   .btn-row.danger:hover { border-color: var(--danger); color: var(--danger); background: rgba(162, 59, 42, 0.08); }
 
   .task-card {
-    background: var(--surface); border: 1px solid var(--border);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--app-glass-border);
     border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--app-glass-shadow);
     transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
     animation: fadeInTab 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
@@ -865,9 +938,12 @@
   .task-link-item svg { width: 12px; height: 12px; }
 
   .graph-card {
-    background: var(--surface); border: 1px solid var(--border);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--app-glass-border);
     border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;
-    box-shadow: var(--shadow-md); animation: fadeInTab 0.4s ease;
+    box-shadow: var(--app-glass-shadow); animation: fadeInTab 0.4s ease;
   }
   .graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .graph-title { font-size: 14px; font-weight: 600; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.08em; }
@@ -887,8 +963,11 @@
   .dialog-overlay.active, .palette-overlay.active, .shortcuts-overlay.active { display: flex; opacity: 1; }
 
   .dialog-box, .palette, .shortcuts-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-soft);
+    background: var(--liquid-sheen), var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--app-glass-border);
+    border-radius: var(--radius-lg); box-shadow: var(--app-glass-shadow), var(--shadow-soft);
     width: 100%; max-width: 480px; transform: translateY(14px) scale(0.97);
     opacity: 0;
     max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px);
@@ -977,13 +1056,22 @@
   .shortcut { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
   .shortcut-label { font-size: 13px; color: var(--text-soft); }
   .shortcut-keys { display: flex; gap: 4px; }
-  .key { padding: 2px 6px; font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; font-family: var(--sans); }
+  .key {
+    padding: 2px 6px; font-size: 11px;
+    background: var(--liquid-chip-bg);
+    -webkit-backdrop-filter: blur(6px) saturate(160%);
+    backdrop-filter: blur(6px) saturate(160%);
+    border: 1px solid var(--app-glass-border); border-radius: 4px; font-family: var(--sans);
+  }
   .shortcuts-close {
-    margin-top: 24px; width: 100%; padding: 10px; background: var(--surface-2);
-    border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer;
+    margin-top: 24px; width: 100%; padding: 10px;
+    background: var(--liquid-sheen), var(--liquid-chip-bg);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
+    backdrop-filter: blur(14px) saturate(170%);
+    border: 1px solid var(--app-glass-border); border-radius: var(--radius); cursor: pointer;
     font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--text); transition: var(--t);
   }
-  .shortcuts-close:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .shortcuts-close:hover { background: var(--liquid-sheen), var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
   /* Toast */
   .toast-container {
@@ -1022,9 +1110,12 @@
     background: linear-gradient(var(--border), transparent);
   }
   .group-card {
-    background: var(--surface); border: 1px solid var(--border);
+    background: var(--app-glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid var(--app-glass-border);
     border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px;
-    box-shadow: var(--shadow-md); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+    box-shadow: var(--app-glass-shadow); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
     animation: fadeInTab 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
   .group-card:hover { box-shadow: var(--shadow-soft); transform: translateY(-1px); }
@@ -1646,29 +1737,30 @@
       uniform vec3 u_colorB;
       uniform vec3 u_colorC;
 
-      vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
-      vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
-      vec3 permute(vec3 x){return mod289(((x*34.0)+1.0)*x);}
-      float snoise(vec2 v){
-        const vec4 C=vec4(0.211324865405187,0.366025403784439,-0.577350269189626,0.024390243902439);
-        vec2 i=floor(v+dot(v,C.yy));
-        vec2 x0=v-i+dot(i,C.xx);
-        vec2 i1=(x0.x>x0.y)?vec2(1.0,0.0):vec2(0.0,1.0);
-        vec4 x12=x0.xyxy+C.xxzz;
-        x12.xy-=i1;
-        i=mod289(i);
-        vec3 p=permute(permute(i.y+vec3(0.0,i1.y,1.0))+i.x+vec3(0.0,i1.x,1.0));
-        vec3 m=max(0.5-vec3(dot(x0,x0),dot(x12.xy,x12.xy),dot(x12.zw,x12.zw)),0.0);
-        m=m*m; m=m*m;
-        vec3 x=2.0*fract(p*C.www)-1.0;
-        vec3 h=abs(x)-0.5;
-        vec3 ox=floor(x+0.5);
-        vec3 a0=x-ox;
-        m*=1.79284291400159-0.85373472095314*(a0*a0+h*h);
-        vec3 g;
-        g.x=a0.x*x0.x+h.x*x0.y;
-        g.yz=a0.yz*x12.xz+h.yz*x12.yw;
-        return 130.0*dot(m,g);
+      float random(vec2 st) {
+        return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+      }
+
+      float noise(vec2 st) {
+        vec2 i = floor(st);
+        vec2 f = fract(st);
+        float a = random(i);
+        float b = random(i + vec2(1.0, 0.0));
+        float c = random(i + vec2(0.0, 1.0));
+        float d = random(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+      }
+
+      float fbm(vec2 st) {
+        float value = 0.0;
+        float amplitude = 0.5;
+        for (int i = 0; i < 5; i++) {
+          value += amplitude * noise(st);
+          st *= 2.0;
+          amplitude *= 0.5;
+        }
+        return value;
       }
 
       void main(){
@@ -1676,29 +1768,29 @@
         vec2 p = uv * 2.0 - 1.0;
         p.x *= u_resolution.x / u_resolution.y;
 
-        float t = u_time * 0.045;
+        // shift into a noise-friendly positive domain while keeping the
+        // same aspect-corrected clip space the pointer tracking already uses
+        vec2 st = p * 0.9 + 1.0;
 
-        // the whole flow field gets pulled gently toward the pointer,
-        // like the aurora is orbiting a warm, glowing "ball"
-        vec2 pw = p + (u_mouse - p) * 0.22;
+        float t = u_time * 0.05;
 
-        float n1 = snoise(pw * 1.1 + vec2(t, -t * 0.8));
-        float n2 = snoise(pw * 1.7 + vec2(-t * 0.6, t * 1.1) + 4.0);
-        float n3 = snoise(pw * 0.75 + vec2(t * 0.35, t * 0.28) + 8.0);
+        vec2 mouseSt = u_mouse * 0.9 + 1.0;
+        vec2 dist = st - mouseSt;
+        float mouseInfluence = exp(-dot(dist, dist) * 1.5) * 0.5;
 
-        float mixVal = smoothstep(-0.6, 0.9, n1 + n2 * 0.5);
-        vec3 col = mix(u_colorA, u_colorB, mixVal);
-        float glow = smoothstep(0.25, 1.0, n3);
-        col = mix(col, u_colorC, glow * 0.45);
+        // domain-warped fbm — soft drifting cloud/marble motion
+        vec2 q = vec2(fbm(st + t), fbm(st - t + vec2(5.2, 1.3)));
+        vec2 r = vec2(fbm(st + 4.0 * q + vec2(1.7, 9.2) + t * 1.5), fbm(st + 4.0 * q + vec2(8.3, 2.8) - t * 1.5));
+        float f = fbm(st + 4.0 * r + mouseInfluence);
 
-        // the ball itself: a soft warm core that tracks the pointer
-        float distToMouse = length(p - u_mouse);
-        float ball = smoothstep(0.55, 0.0, distToMouse);
-        col = mix(col, u_colorC, ball * 0.55);
-        col += u_colorC * smoothstep(0.12, 0.0, distToMouse) * 0.4;
+        vec3 col = mix(u_colorA, u_colorB, f);
+        col = mix(col, u_colorC, smoothstep(0.4, 0.8, f) * smoothstep(0.0, 0.5, length(q)));
 
-        float vign = 1.0 - smoothstep(0.45, 1.35, length(p));
-        col *= mix(0.72, 1.0, vign);
+        // soft light sweep that tracks the pointer through the cloud
+        col += u_colorC * mouseInfluence * 0.3;
+
+        float vign = 1.0 - smoothstep(0.5, 1.4, length(p));
+        col *= mix(0.75, 1.0, vign);
 
         gl_FragColor = vec4(col, 1.0);
       }
@@ -1759,7 +1851,7 @@
     }, { passive: true });
 
     const PALETTES = {
-      light: { a: [0.85, 0.78, 0.66], b: [0.98, 0.6, 0.24], c: [0.85, 0.3, 0.02] },
+      light: { a: [0.72, 0.62, 0.46], b: [0.99, 0.58, 0.18], c: [0.82, 0.26, 0.02] },
       dark:  { a: [0.02, 0.02, 0.02],   b: [0.13, 0.07, 0.02], c: [0.992, 0.494, 0.078] }
     };
     function currentPalette() {
