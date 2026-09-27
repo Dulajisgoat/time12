@@ -958,6 +958,54 @@
   .graph-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgba(253, 126, 20, 0.35)); }
   .graph-area { fill: var(--accent-soft); opacity: 0.6; }
 
+  /* ---------- Performance table (per-user check/fail history) ---------- */
+  .dialog-box.perf-dialog { max-width: 720px; width: 100%; }
+  .perf-tabs {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
+  }
+  .perf-tab {
+    font-family: var(--sans); font-size: 12px; font-weight: 600;
+    letter-spacing: 0.03em; color: var(--text-soft);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  }
+  .perf-tab:hover { color: var(--text); border-color: var(--text-muted); }
+  .perf-tab.active {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .perf-table-wrap {
+    max-height: 360px; overflow-y: auto; overflow-x: auto;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    -webkit-overflow-scrolling: touch; margin-bottom: 20px;
+  }
+  .perf-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 420px; }
+  .perf-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--surface-2); color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; font-weight: 700;
+    text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  .perf-table tbody td {
+    padding: 9px 14px; border-bottom: 1px solid var(--border);
+    color: var(--text-soft); vertical-align: middle;
+  }
+  .perf-table tbody tr:last-child td { border-bottom: none; }
+  .perf-table tbody tr:hover { background: var(--surface); }
+  .perf-date { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .perf-result { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .perf-status-text { font-weight: 600; }
+  .perf-row-pass .perf-status-text { color: var(--success); }
+  .perf-row-fail .perf-status-text { color: var(--danger); }
+  .perf-row-na .perf-status-text { color: var(--text-muted); font-weight: 500; }
+  .perf-tasks { color: var(--text-muted); }
+  .perf-muted { color: var(--text-muted); }
+  .perf-mark { width: 20px; height: 20px; flex: 0 0 20px; }
+  .perf-mark svg { width: 100%; height: 100%; }
+  .perf-mark.pass { color: var(--success); }
+  .perf-mark.fail { color: var(--danger); }
+  .perf-mark.na { color: var(--text-muted); }
+  .perf-empty { padding: 32px 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
   /* Dialogs */
   .dialog-overlay, .palette-overlay, .shortcuts-overlay {
     position: fixed; inset: 0;
@@ -1007,13 +1055,19 @@
   .dialog-input.mono { font-family: monospace; letter-spacing: 1px; }
   
   /* Custom Date Input Styling */
-  .dialog-input[type="date"]::-webkit-calendar-picker-indicator {
+  .dialog-input[type="date"]::-webkit-calendar-picker-indicator,
+  .dialog-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     filter: var(--icon-filter, none);
   }
-  html[data-theme="dark"] .dialog-input[type="date"]::-webkit-calendar-picker-indicator {
+  html[data-theme="dark"] .dialog-input[type="date"]::-webkit-calendar-picker-indicator,
+  html[data-theme="dark"] .dialog-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     filter: invert(1);
   }
+
+  /* Overdue indicators */
+  .due-overdue { color: var(--danger, #e5484d) !important; font-weight: 600; }
+  .task-status-badge.overdue { background: var(--danger, #e5484d); color: #fff; }
 
   .toggle-group { display: flex; gap: 8px; margin-bottom: 16px; }
   .toggle-btn {
@@ -1133,6 +1187,21 @@
   .group-id-badge { font-size: 10px; color: var(--bg); background: var(--text-muted); padding: 3px 8px; border-radius: 999px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.06em; }
   .group-actions { display: flex; gap: 8px; }
   .members-list { display: flex; flex-direction: column; gap: 8px; }
+  .list-overflow-toggle {
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--sans);
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .list-overflow-toggle:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .list-overflow-hidden { display: none !important; }
   .member-item {
     display: flex; justify-content: space-between; align-items: center;
     padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
@@ -2382,7 +2451,9 @@
     let tasksHtml = '';
     if (hasTasks) {
       const taskRows = orgTasks.map(t => {
-        const dueDate = t.due_date ? new Date(t.due_date).toLocaleDateString() : 'N/A';
+        const dueDateObj = t.due_date ? new Date(t.due_date) : null;
+        const dueDate = dueDateObj ? dueDateObj.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+        const isTaskOverdue = dueDateObj ? dueDateObj < new Date() : false;
         const groupName = t.groups ? t.groups.name : 'Unassigned';
         
         // 1. Show Original Task Links (Reference Materials)
@@ -2399,7 +2470,7 @@
         // submitted yet were invisible — and if no one had submitted,
         // it showed "No members assigned" even when members existed.
         // ============================================================
-        let memberStatusHtml = '<div style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px;"><strong style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Member Progress</strong><div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">';
+        let memberStatusHtml = '<div style="margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 10px;"><strong style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Member Progress</strong><div class="member-progress-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">';
         
         // Build a lookup map of submissions by user_id for quick access
         const submissionsByUser = {};
@@ -2409,9 +2480,10 @@
 
         // Use groupMembers (ALL members of the group) instead of just submissions
         const allMembers = t.groupMembers || [];
+        const MEMBER_PROGRESS_VISIBLE = 3;
 
         if (allMembers.length > 0) {
-          allMembers.forEach(member => {
+          allMembers.forEach((member, memberIdx) => {
             const sub = submissionsByUser[member.user_id];
             const memberUser = member.users?.username || 'Unknown User';
             let subStatus = sub?.status || 'not_started';
@@ -2444,7 +2516,7 @@
             }
 
             memberStatusHtml += `
-              <div style="font-size: 13px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 4px 0;">
+              <div class="${memberIdx >= MEMBER_PROGRESS_VISIBLE ? 'list-overflow-hidden' : ''}" style="font-size: 13px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 4px 0;">
                 <div style="flex: 1;">
                   <div><strong>${escapeHtml(memberUser)}</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: capitalize; margin-left: 8px; font-size: 11px;">(${statusText})</span></div>
                   ${subDetails}
@@ -2453,6 +2525,9 @@
               </div>
             `;
           });
+          if (allMembers.length > MEMBER_PROGRESS_VISIBLE) {
+            memberStatusHtml += `<button type="button" class="list-overflow-toggle" data-overflow-toggle data-hidden-count="${allMembers.length - MEMBER_PROGRESS_VISIBLE}">Show ${allMembers.length - MEMBER_PROGRESS_VISIBLE} more</button>`;
+          }
         } else {
           // Only show this when the group genuinely has no members
           memberStatusHtml += `<div style="font-size: 12px; color: var(--text-muted);">No members in this group yet. Add members to the group first.</div>`;
@@ -2468,7 +2543,7 @@
               ${memberStatusHtml}
             </td>
             <td>${escapeHtml(groupName)}</td>
-            <td>${dueDate}</td>
+            <td class="${isTaskOverdue ? 'due-overdue' : ''}">${dueDate}${isTaskOverdue ? ' <span style="font-size:10px; text-transform:uppercase; opacity:0.85;">(Overdue)</span>' : ''}</td>
             <td style="text-align: right;">
               <button class="btn-row danger" data-task-action="delete" data-task-id="${t.id}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -2590,9 +2665,11 @@
   }
 
   function renderGroupNode(group, depth) {
-    const memberList = group.group_members && group.group_members.length > 0 
-      ? group.group_members.map(m => `
-        <div class="member-item" data-user-id="${m.user_id}" data-username="${m.users.username}">
+    const GROUP_MEMBERS_VISIBLE = 3;
+    const groupMemberCount = group.group_members ? group.group_members.length : 0;
+    const memberList = groupMemberCount > 0 
+      ? group.group_members.map((m, mIdx) => `
+        <div class="member-item${mIdx >= GROUP_MEMBERS_VISIBLE ? ' list-overflow-hidden' : ''}" data-user-id="${m.user_id}" data-username="${m.users.username}">
           <span class="member-name">${m.users.username}</span>
           <button class="btn-member-remove" data-group-id="${group.id}" data-user-id="${m.user_id}" title="Remove member">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -2600,7 +2677,9 @@
             </svg>
           </button>
         </div>
-      `).join('')
+      `).join('') + (groupMemberCount > GROUP_MEMBERS_VISIBLE
+        ? `<button type="button" class="list-overflow-toggle" data-overflow-toggle data-hidden-count="${groupMemberCount - GROUP_MEMBERS_VISIBLE}">Show ${groupMemberCount - GROUP_MEMBERS_VISIBLE} more</button>`
+        : '')
       : `<div style="font-size: 13px; color: var(--text-muted); padding: 8px 0;">No members yet.</div>`;
       
     const subGroupsHtml = group.sub_groups && group.sub_groups.length > 0 
@@ -2682,8 +2761,29 @@
     });
   }
 
+  // Delegated handler for "Show N more / Show less" toggles used by any
+  // overflow-capped list (group members, member progress, etc). Delegated
+  // on document so it keeps working across re-renders without needing to
+  // be re-attached each time.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-overflow-toggle]');
+    if (!btn) return;
+    const list = btn.parentElement;
+    if (!list) return;
+    const hiddenItems = Array.from(list.children).filter(el => el !== btn && el.classList.contains('list-overflow-hidden'));
+    const collapsedItems = Array.from(list.children).filter(el => el !== btn && el.dataset.overflowCollapsed === '1');
+    if (hiddenItems.length > 0) {
+      hiddenItems.forEach(el => { el.classList.remove('list-overflow-hidden'); el.dataset.overflowCollapsed = '1'; });
+      btn.textContent = 'Show less';
+    } else if (collapsedItems.length > 0) {
+      collapsedItems.forEach(el => { el.classList.add('list-overflow-hidden'); delete el.dataset.overflowCollapsed; });
+      btn.textContent = `Show ${collapsedItems.length} more`;
+    }
+  });
+
   function closeDialog() {
     dialogOverlay.classList.remove('active');
+    dialogBox.classList.remove('perf-dialog');
   }
 
   dialogOverlay.addEventListener('click', (e) => {
@@ -2744,7 +2844,11 @@
     }
 
     const groupOptions = orgGroups.map(g => `<div class="custom-select-option" data-value="${g.id}">${escapeHtml(g.name)}</div>`).join('');
-    const today = new Date().toISOString().split('T')[0];
+    // Default to end of today, in the format datetime-local expects (local time, no timezone suffix)
+    const defaultDue = new Date();
+    defaultDue.setHours(23, 59, 0, 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    const defaultDueValue = `${defaultDue.getFullYear()}-${pad(defaultDue.getMonth() + 1)}-${pad(defaultDue.getDate())}T${pad(defaultDue.getHours())}:${pad(defaultDue.getMinutes())}`;
 
     dialogBox.innerHTML = `
       <div class="dialog-title">Create New Task</div>
@@ -2773,8 +2877,8 @@
       </div>
 
       <div class="dialog-input-group">
-        <label>Due Date</label>
-        <input type="date" id="taskDueInput" class="dialog-input" value="${today}">
+        <label>Due Date &amp; Time</label>
+        <input type="datetime-local" id="taskDueInput" class="dialog-input" value="${defaultDueValue}">
       </div>
 
       <div class="dialog-input-group">
@@ -2831,12 +2935,16 @@
       const title = document.getElementById('taskTitleInput').value.trim();
       const description = document.getElementById('taskDescInput').value.trim();
       const groupId = document.getElementById('taskGroupValue').value;
-      const dueDate = document.getElementById('taskDueInput').value;
+      const dueDateRaw = document.getElementById('taskDueInput').value;
 
-      if (!title || !groupId || !dueDate) {
+      if (!title || !groupId || !dueDateRaw) {
         toast('Title, Group, and Due Date are required.', 'error');
         return;
       }
+
+      // Convert the local datetime-local value into a full timestamptz ISO string
+      // so the exact time (not just the day) is preserved server-side.
+      const dueDate = new Date(dueDateRaw).toISOString();
 
       const links = [];
       document.querySelectorAll('#taskLinksContainer > div').forEach(div => {
@@ -3749,14 +3857,35 @@ Marketing,alex99,</div>
   }
 
   /* ---------- User Tasks Logic & Graphs ---------- */
+
+  // Periods offered in the per-user performance table. `days` is how many
+  // calendar days back from today each tab renders. The backend
+  // (get_user_task_graph) only returns ~60 days of history, so any day
+  // outside that coverage — or any day with no task due — naturally has
+  // no entries and is rendered as "Not Available" rather than pass/fail.
+  const PERF_PERIODS = [
+    { key: '1D', label: '1D', days: 1 },
+    { key: '5D', label: '5D', days: 5 },
+    { key: '1W', label: '1W', days: 7 },
+    { key: '1M', label: '1M', days: 30 },
+    { key: '6M', label: '6M', days: 182 },
+    { key: '1Y', label: '1Y', days: 365 },
+    { key: '10Y', label: '10Y', days: 3650 },
+    { key: 'ALL', label: 'ALL', days: 7300 },
+  ];
+  const PERF_DEFAULT_PERIOD = '1M';
+
   async function openUserGraphDialog(targetUserId, username) {
+    dialogBox.classList.add('perf-dialog');
     dialogBox.innerHTML = `
-      <div class="dialog-title">60-Day Task Graph</div>
-      <div class="dialog-text">Performance overview for <strong>${escapeHtml(username)}</strong></div>
-      <div id="userGraphContainer" style="padding: 24px 0;">
-        <div class="skeleton-note"><div class="skeleton-line" style="width: 100%"></div><div class="skeleton-line short"></div></div>
+      <div class="dialog-title">Performance</div>
+      <div class="dialog-text">Task completion history for <strong>${escapeHtml(username)}</strong></div>
+      <div class="perf-tabs" id="perfTabs"></div>
+      <div class="perf-table-wrap" id="perfTableWrap">
+        <div class="skeleton-note" style="margin: 16px;"><div class="skeleton-line" style="width: 100%"></div><div class="skeleton-line short"></div></div>
       </div>
       <div class="dialog-actions">
+        <button class="btn-primary" id="downloadPerfXlsxBtn">Download Excel</button>
         <button class="btn-primary main" id="closeGraphBtn">Close</button>
       </div>
     `;
@@ -3766,18 +3895,139 @@ Marketing,alex99,</div>
 
     try {
       const res = await orgApiCall({ action: 'get_user_task_graph', targetUserId });
-      const graphContainer = document.getElementById('userGraphContainer');
-      
-      if (!res.success || !res.graphData || res.graphData.length === 0) {
-        graphContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">No task data available for this user.</div>`;
+      const graphData = (res.success && Array.isArray(res.graphData)) ? res.graphData : [];
+      renderPerformanceTable(graphData, username);
+    } catch (error) {
+      document.getElementById('perfTableWrap').innerHTML = `<div style="text-align: center; color: var(--danger); padding: 20px;">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderPerformanceTable(graphData, username) {
+    const tabsEl = document.getElementById('perfTabs');
+    const wrapEl = document.getElementById('perfTableWrap');
+    const downloadBtn = document.getElementById('downloadPerfXlsxBtn');
+    if (!tabsEl || !wrapEl) return;
+
+    // Bucket the raw graph entries by their (YYYY-MM-DD) due date so each
+    // calendar day can be looked up in O(1) while rendering a period.
+    const dayMap = {};
+    graphData.forEach(item => {
+      if (!item || !item.date) return;
+      const dateStr = String(item.date).split('T')[0];
+      if (!dayMap[dateStr]) dayMap[dateStr] = [];
+      dayMap[dateStr].push(item);
+    });
+
+    tabsEl.innerHTML = PERF_PERIODS.map(p => `
+      <button class="perf-tab${p.key === PERF_DEFAULT_PERIOD ? ' active' : ''}" data-period="${p.key}">${p.label}</button>
+    `).join('');
+
+    let currentRows = [];
+
+    function perfMarkHtml(state) {
+      if (state === 'pass') {
+        return `<span class="perf-mark pass" title="Completed on time">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.16"/>
+            <path d="M7.5 12.5l3 3 6-6.5"/>
+          </svg>
+        </span>`;
+      }
+      if (state === 'fail') {
+        return `<span class="perf-mark fail" title="Not completed">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.16"/>
+            <path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/>
+          </svg>
+        </span>`;
+      }
+      return `<span class="perf-mark na" title="Not available">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9.5" fill="currentColor" opacity="0.08"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </span>`;
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function renderPeriod(periodKey) {
+      const period = PERF_PERIODS.find(p => p.key === periodKey) || PERF_PERIODS[3];
+      tabsEl.querySelectorAll('.perf-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.period === period.key));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const rows = [];
+      for (let i = 0; i < period.days; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const entries = dayMap[dateStr];
+
+        let state, label, titles = '';
+        if (!entries || entries.length === 0) {
+          state = 'na';
+          label = 'Not Available';
+        } else {
+          const allCompleted = entries.every(e => e.status === 'completed');
+          state = allCompleted ? 'pass' : 'fail';
+          label = allCompleted ? 'Completed' : 'Failed';
+          titles = entries.map(e => e.title).filter(Boolean).join(', ');
+        }
+        rows.push({ dateStr, state, label, titles });
+      }
+      currentRows = rows;
+
+      if (rows.every(r => r.state === 'na')) {
+        wrapEl.innerHTML = `<div class="perf-empty">No task activity recorded for this range — showing "Not Available" for every day.</div>`;
         return;
       }
 
-      const graphHtml = renderGraphHTMLFromBackend(res.graphData);
-      graphContainer.innerHTML = graphHtml;
-    } catch (error) {
-      document.getElementById('userGraphContainer').innerHTML = `<div style="text-align: center; color: var(--danger); padding: 20px;">${escapeHtml(error.message)}</div>`;
+      wrapEl.innerHTML = `
+        <table class="perf-table">
+          <thead>
+            <tr><th>Date</th><th>Result</th><th>Task(s)</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr class="perf-row perf-row-${r.state}">
+                <td class="perf-date">${formatDate(r.dateStr)}</td>
+                <td class="perf-result">${perfMarkHtml(r.state)}<span class="perf-status-text">${r.label}</span></td>
+                <td class="perf-tasks">${r.titles ? escapeHtml(r.titles) : `<span class="perf-muted">${r.state === 'na' ? '–' : '—'}</span>`}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
     }
+
+    tabsEl.querySelectorAll('.perf-tab').forEach(btn => {
+      btn.addEventListener('click', () => renderPeriod(btn.dataset.period));
+    });
+
+    if (downloadBtn) {
+      downloadBtn.onclick = () => {
+        if (typeof XLSX === 'undefined') {
+          toast('Excel support failed to load; please try again.', 'error');
+          return;
+        }
+        const aoa = [
+          ['Date', 'Result', 'Task(s)'],
+          ...currentRows.map(r => [r.dateStr, r.label, r.titles || 'Not Available'])
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Performance');
+        const safeName = (username || 'user').replace(/[^a-z0-9]+/gi, '_');
+        XLSX.writeFile(wb, `time12-performance-${safeName}.xlsx`);
+      };
+    }
+
+    renderPeriod(PERF_DEFAULT_PERIOD);
   }
 
   function renderUserTasksState() {
@@ -3902,7 +4152,9 @@ Marketing,alex99,</div>
     if (!container) return;
 
     const taskCards = userAssignedTasks.map(t => {
-      const dueDate = t.dueDate ? new Date(t.dueDate).toLocaleDateString() : 'N/A';
+      const dueDateObj = t.dueDate ? new Date(t.dueDate) : null;
+      const dueDate = dueDateObj ? dueDateObj.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A';
+      const isOverdue = dueDateObj ? dueDateObj < new Date() : false;
       const statusClass = t.status || 'not_started';
       const statusText = (t.status || 'Not Started').replace('_', ' ');
 
@@ -3956,10 +4208,13 @@ Marketing,alex99,</div>
         `;
       }
 
-      const canSubmit = t.status === 'not_started' || t.status === 'rejected';
+      const canStillAct = t.status === 'not_started' || t.status === 'rejected';
+      const canSubmit = canStillAct && !isOverdue;
       let actionButton = '';
       if (canSubmit) {
         actionButton = `<button class="btn-action primary" data-task-action="submit" data-task-id="${t.taskId}">Submit Task</button>`;
+      } else if (canStillAct && isOverdue) {
+        actionButton = `<span style="font-size: 12px; font-weight: 600; color: var(--danger, #e5484d); text-transform: uppercase; letter-spacing: 0.05em;">Deadline Passed — Submissions Closed</span>`;
       }
 
       return `
@@ -3970,10 +4225,10 @@ Marketing,alex99,</div>
               <div class="task-card-meta">
                 <span>${escapeHtml(t.groupName || 'Unassigned')}</span>
                 <span class="dot"></span>
-                <span>Due: ${dueDate}</span>
+                <span class="${isOverdue ? 'due-overdue' : ''}">Due: ${dueDate}</span>
               </div>
             </div>
-            <span class="task-status-badge ${statusClass}">${statusText}</span>
+            <span class="task-status-badge ${isOverdue && canStillAct ? 'overdue' : statusClass}">${isOverdue && canStillAct ? 'Overdue' : statusText}</span>
           </div>
           ${t.description ? `<div class="task-description">${escapeHtml(t.description)}</div>` : ''}
           ${submissionHtml}
@@ -4813,6 +5068,7 @@ Marketing,alex99,</div>
       e.preventDefault(); applyFormat('link');
     } else if (e.key === 'Escape') {
       dialogOverlay.classList.remove('active');
+      dialogBox.classList.remove('perf-dialog');
       shortcutsOverlay.classList.remove('active');
       closePalette();
       deleteConfirmId = null;
