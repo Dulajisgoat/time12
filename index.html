@@ -3360,7 +3360,7 @@
       <div id="addSingleContent">
         <div class="dialog-input-group">
           <label>Username (no domain)</label>
-          <input type="text" id="subUserInput" class="dialog-input" placeholder="e.g. john.doe" autocomplete="off">
+          <input type="text" id="subUserInput" class="dialog-input" placeholder="e.g. johndoe" autocomplete="off">
         </div>
 
         <div class="dialog-input-group">
@@ -3388,8 +3388,8 @@
             Works with a <code>.csv</code> or an Excel <code>.xlsx</code>/<code>.xls</code> file. An optional header row is fine.
           </div>
           <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; font-family: monospace; background: var(--surface-2); border-radius: var(--radius); padding: 8px 10px; white-space: pre;">group,username,password
-Engineering,john.doe,
-Engineering,jane.smith,Secure123
+Engineering,johndoe,
+Engineering,janesmith,Secure123
 Marketing,alex99,</div>
         </div>
 
@@ -3552,7 +3552,7 @@ Marketing,alex99,</div>
       if (!isImportActive) {
         const subUsername = document.getElementById('subUserInput').value.trim();
         if (!subUsername || !/^[a-zA-Z0-9]+$/.test(subUsername)) {
-          toast('Invalid username. Use only letters and numbers.', 'error');
+          toast('Invalid username. Use only letters and numbers (no dots or spaces).', 'error');
           return;
         }
 
@@ -3585,8 +3585,8 @@ Marketing,alex99,</div>
 
       try {
         setStatus('saving');
-        await runBulkImport(currentBulkRows, useRandom, fallbackPassword);
-        closeDialog();
+        const showedResults = await runBulkImport(currentBulkRows, useRandom, fallbackPassword);
+        if (!showedResults) closeDialog(); // don't wipe the credentials dialog
       } catch (e) {
         toast(e.message, 'error');
       } finally {
@@ -3610,8 +3610,15 @@ Marketing,alex99,</div>
     return flat.find(g => (g.name || '').trim().toLowerCase() === target) || null;
   }
 
+  function getOrgSuffix() {
+    const u = (ownerUsername || '').trim().toLowerCase();
+    return u.includes('@') ? u.split('@')[1] : u;
+  }
+
   function findAccountByUsernameLoose(username) {
-    const target = username.trim().toLowerCase();
+    const t = username.trim().toLowerCase();
+    // Accounts are stored as "user@org"; CSV rows usually contain just "user".
+    const target = t.includes('@') ? t : `${t}@${getOrgSuffix()}`;
     return (orgAccounts || []).find(a => (a.username || '').trim().toLowerCase() === target) || null;
   }
 
@@ -3713,7 +3720,7 @@ Marketing,alex99,</div>
           groupId,
           useRandomPassword: useRandom
         });
-        if (res.addedAccounts) createdAccounts.push(...res.addedAccounts);
+        if (res.addedAccounts) createdAccounts.push(...res.addedAccounts.filter(a => a.password));
         if (res.errors && res.errors.length) {
           res.errors.forEach(err => errors.push(typeof err === 'string' ? err : JSON.stringify(err)));
         }
@@ -3748,11 +3755,13 @@ Marketing,alex99,</div>
 
     if (createdAccounts.length > 0) {
       showBulkImportResultsDialog(createdAccounts, errors);
+      return true;
     } else if (errors.length > 0) {
       toast(`Import finished with ${errors.length} error(s).`, 'warn');
     } else {
       toast('Bulk import complete.');
     }
+    return false;
   }
 
   function showBulkImportResultsDialog(createdAccounts, errors) {
@@ -3954,6 +3963,13 @@ Marketing,alex99,</div>
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
+    function localDateStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
     function renderPeriod(periodKey) {
       const period = PERF_PERIODS.find(p => p.key === periodKey) || PERF_PERIODS[3];
       tabsEl.querySelectorAll('.perf-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.period === period.key));
@@ -3965,7 +3981,7 @@ Marketing,alex99,</div>
       for (let i = 0; i < period.days; i++) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
+        const dateStr = localDateStr(d);
         const entries = dayMap[dateStr];
 
         let state, label, titles = '';
