@@ -3422,6 +3422,19 @@ Marketing,alex99,</div>
           <input type="text" id="bulkCustomPassInput" class="dialog-input" placeholder="Min 6 characters">
         </div>
 
+        <details class="dialog-input-group" id="aiPromptDetails" style="background: var(--surface-2); border-radius: var(--radius); padding: 10px 12px;">
+          <summary style="cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-soft);">Need to format your list? Get an AI prompt</summary>
+          <div style="margin-top: 12px;">
+            <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px;">
+              Copy this prompt into any AI, then <strong>paste your actual list</strong> (or attach your Excel file) where it says <code>[PASTE YOUR LIST HERE]</code>. It follows the Password Method chosen above.
+            </div>
+            <label style="display:block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 6px;">Group name for the prompt</label>
+            <input type="text" id="aiPromptGroupInput" class="dialog-input" placeholder="e.g. Engineering" autocomplete="off" style="margin-bottom: 10px;">
+            <textarea id="aiPromptText" class="dialog-input" rows="9" readonly style="font-family: monospace; font-size: 12px; resize: vertical; line-height: 1.5;"></textarea>
+            <button type="button" class="btn-primary" id="copyAiPromptBtn" style="margin-top: 10px; width: 100%;">Copy Prompt</button>
+          </div>
+        </details>
+
         <div class="dialog-input-group">
           <div id="bulkImportPreview" style="font-size: 12px; color: var(--text-muted);">Upload a file or paste rows above to see a preview.</div>
         </div>
@@ -3544,6 +3557,65 @@ Marketing,alex99,</div>
       bulkRandomBtn.classList.remove('active');
       bulkCustomPassGroup.style.display = 'block';
     };
+
+    // ---- AI prompt helper (copy-paste prompt that yields importable CSV) ----
+    const aiGroupInput = document.getElementById('aiPromptGroupInput');
+    const aiPromptText = document.getElementById('aiPromptText');
+    const aiCopyBtn = document.getElementById('copyAiPromptBtn');
+    const bulkCustomPassInput = document.getElementById('bulkCustomPassInput');
+
+    function buildAiPrompt() {
+      const group = aiGroupInput.value.trim() || 'GROUP NAME HERE';
+      const isCustom = bulkCustomBtn.classList.contains('active');
+      const usernameRule = 'Username rule: Prefer numbers for the username. '
+        + 'If no numbers exist, or a number is repeated 2 or more times with different names, or the names differ, use a string (text) instead. '
+        + 'If no string exists, or a string is repeated 2 or more times with different numbers, use a mix of string and number.';
+      const outputRule = 'Output only the CSV rows (one row per person, no explanations), inside a code block so I can copy it.';
+
+      let format;
+      if (isCustom) {
+        const pass = bulkCustomPassInput.value.trim() || 'PASSWORD CUSTOM HERE';
+        format = 'Give CSV format "group,username,password" with the group field as "' + group + '" '
+          + 'and the password field as "' + pass + '" '
+          + '(if my list or uploaded Excel file already has a password for a person, use that password instead of this one).';
+      } else {
+        format = 'Give CSV format "group,username" with the group field as "' + group + '".';
+      }
+      return 'From this list (make sure to paste your actual list below, or attach your Excel file):\n\n'
+        + '[PASTE YOUR LIST HERE]\n\n'
+        + format + '\n\n' + usernameRule + '\n\n' + outputRule;
+    }
+
+    function refreshAiPrompt() { aiPromptText.value = buildAiPrompt(); }
+    aiGroupInput.addEventListener('input', refreshAiPrompt);
+    bulkCustomPassInput.addEventListener('input', refreshAiPrompt);
+    bulkRandomBtn.addEventListener('click', refreshAiPrompt);
+    bulkCustomBtn.addEventListener('click', refreshAiPrompt);
+    refreshAiPrompt();
+
+    aiCopyBtn.addEventListener('click', async () => {
+      refreshAiPrompt();
+      const text = aiPromptText.value;
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch (_) {
+        try {
+          aiPromptText.removeAttribute('readonly');
+          aiPromptText.select();
+          aiPromptText.setSelectionRange(0, text.length);
+          ok = document.execCommand('copy');
+        } catch (__) { ok = false; }
+        aiPromptText.setAttribute('readonly', '');
+      }
+      if (ok) {
+        toast('Prompt copied. Paste it into your AI, then add your list.', 'success');
+      } else {
+        toast('Could not copy automatically. Select the text and copy it manually.', 'warn');
+      }
+    });
+    aiPromptText.addEventListener('focus', () => aiPromptText.select());
 
     document.getElementById('cancelDialog').onclick = closeDialog;
     confirmBtn.onclick = async () => {
