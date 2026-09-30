@@ -1455,6 +1455,28 @@
   .header-actions { display: flex; align-items: center; gap: 8px; position: relative; z-index: 1; flex-shrink: 0; }
   .login-theme-toggle.login-device-toggle { right: 60px; animation-delay: 0.08s; }
   .login-device-toggle:active svg { transform: none; }
+
+  /* ---- Button busy state (prevents spam clicks during long backend calls) ---- */
+  @keyframes t12-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .btn-action[data-busy="1"], .btn-row[data-busy="1"], .btn-primary[data-busy="1"], .btn-auth[data-busy="1"] {
+    pointer-events: none !important;
+    cursor: wait !important;
+    opacity: 0.65 !important;
+    position: relative;
+  }
+  .btn-action[data-busy="1"]::before, .btn-row[data-busy="1"]::before, .btn-primary[data-busy="1"]::before {
+    content: '';
+    position: absolute; left: 50%; top: 50%;
+    width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%;
+    animation: t12-spin 0.8s linear infinite;
+    z-index: 5;
+  }
+  .btn-action[data-busy="1"] > *, .btn-row[data-busy="1"] > *, .btn-primary[data-busy="1"] > * {
+    visibility: hidden;
+  }
+
 </style>
 </head>
 <body>
@@ -1769,20 +1791,28 @@
   /* ---------- Auth / Session ---------- */
   function getStoredSession() {
     try {
-      const userId = sessionStorage.getItem('userId');
-      const username = sessionStorage.getItem('username');
-      const authToken = sessionStorage.getItem('authToken');
+      const userId = localStorage.getItem('userId');
+      const username = localStorage.getItem('username');
+      const authToken = localStorage.getItem('authToken');
       if (userId && username && authToken) return { userId, username, authToken };
     } catch {}
     return null;
   }
   function clearSession() {
     try {
-      sessionStorage.removeItem('userId');
-      sessionStorage.removeItem('username');
-      sessionStorage.removeItem('authToken');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      localStorage.removeItem('authToken');
     } catch {}
   }
+
+  /* Cross-tab session sync: when another tab logs in or out, this tab
+     reloads to reflect the new auth state immediately. */
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'authToken' || e.key === 'userId' || e.key === 'username') {
+      location.reload();
+    }
+  });
 
   /* ---------- Theme ---------- */
   const SUN_ICON = `<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`;
@@ -1928,9 +1958,9 @@
           action === 'register' ? 'Account created — welcome to Time12' : 'Welcome back to Time12',
           'success'
         );
-        sessionStorage.setItem('userId', data.userId);
-        sessionStorage.setItem('username', data.username);
-        sessionStorage.setItem('authToken', data.token);
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('authToken', data.token);
         setTimeout(() => enterApp(true), 700);
       } else {
         showLoginMessage(data.error || 'Authentication failed');
@@ -2427,7 +2457,7 @@
     }
     async callEdgeFunction(action, note = null, noteId = null) {
       const functionUrl = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_NAME}`;
-      const token = sessionStorage.getItem('authToken'); 
+      const token = localStorage.getItem('authToken'); 
       if (!token) throw new Error("Not authenticated");
 
       try {
@@ -2594,8 +2624,82 @@
   }
   const dialogBox = document.getElementById('dialogBox');
 
+
+  /* ============================================================
+   * Button Guard — prevents duplicate backend requests and shows
+   * a reassurance toast for long-running operations (1-2 min).
+   * Wrap any click handler that calls orgApiCall with guardButton
+   * to: (1) ignore clicks while a request with the same key is
+   * in flight, (2) disable the button visually, (3) toast the user
+   * with a reassurance message and a 35s follow-up.
+   * ============================================================ */
+  const __inflightActions = new Set();
+  function guardButton(btn, actionKey, actionFn, opts) {
+    opts = opts || {};
+    if (!btn) return Promise.resolve().then(actionFn);
+    var key = actionKey
+      || btn.dataset.taskId
+      || btn.dataset.username
+      || btn.dataset.groupId
+      || (btn.id || 'btn') + ':' + Math.random().toString(36).slice(2);
+    if (__inflightActions.has(key)) {
+      toast('Already working on that — please wait...', 'warn');
+      return Promise.resolve();
+    }
+    __inflightActions.add(key);
+    btn.dataset.busy = '1';
+    btn.disabled = true;
+    var followup = null;
+    if (opts.reassure !== false) {
+      toast(opts.reassureText || 'Working on it — this can take 1–2 minutes. Feel free to keep using the app.', 'success');
+      followup = setTimeout(function () {
+        if (__inflightActions.has(key)) {
+          toast('Still working — backend is still processing your request...', 'success');
+        }
+      }, 35000);
+    }
+    function restore() {
+      __inflightActions.delete(key);
+      if (followup) clearTimeout(followup);
+      try { delete btn.dataset.busy; } catch (e) { btn.removeAttribute('data-busy'); }
+      btn.disabled = false;
+    }
+    return Promise.resolve().then(actionFn).then(restore, restore);
+  }
+
+  /* Monkey-patch a dialog confirm button's onclick with a guard.
+   * Disables the button while the async handler runs and shows a
+   * reassurance toast. Idempotent — calling twice just re-wraps. */
+  function guardDialogButton(btnId, actionKey, opts) {
+    opts = opts || {};
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (btn.dataset.guarded === '1') return;
+    btn.dataset.guarded = '1';
+    var userHandler = btn.onclick;
+    btn.onclick = async function (e) {
+      if (btn.dataset.busy === '1') { if (e && e.preventDefault) e.preventDefault(); return; }
+      btn.dataset.busy = '1';
+      btn.disabled = true;
+      if (opts.reassure !== false) {
+        toast(opts.reassureText || 'Working on it — this can take 1–2 minutes. Feel free to keep using the app.', 'success');
+      }
+      var followup = setTimeout(function () {
+        if (btn.dataset.busy === '1') toast('Still working — backend is processing...', 'success');
+      }, 35000);
+      try {
+        if (userHandler) await userHandler.call(this, e);
+      } finally {
+        clearTimeout(followup);
+        __inflightActions.delete(actionKey || btnId);
+        try { delete btn.dataset.busy; } catch (e) { btn.removeAttribute('data-busy'); }
+        btn.disabled = false;
+      }
+    };
+  }
+
   async function orgApiCall(body) {
-    const token = sessionStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
     if (!token) {
       showLogin();
       throw new Error("Not authenticated");
@@ -2935,22 +3039,22 @@
       });
 
       document.querySelectorAll('[data-action="reroll"]').forEach(btn => {
-        btn.addEventListener('click', () => rerollPassword(btn.dataset.username));
+        btn.addEventListener('click', () => guardButton(btn, 'reroll:'+btn.dataset.username, () => rerollPassword(btn.dataset.username)));
       });
       document.querySelectorAll('[data-action="delete"]').forEach(btn => {
-        btn.addEventListener('click', () => deleteSingleAccount(btn.dataset.username));
+        btn.addEventListener('click', () => guardButton(btn, 'delete_acc:'+btn.dataset.username, () => deleteSingleAccount(btn.dataset.username)));
       });
     }
 
     if (hasTasks) {
       document.querySelectorAll('[data-task-action="verify"]').forEach(btn => {
-        btn.addEventListener('click', () => handleTaskAction('verify_task', btn.dataset.taskId, btn.dataset.userId));
+        btn.addEventListener('click', () => guardButton(btn, 'verify:'+btn.dataset.taskId+':'+btn.dataset.userId, () => handleTaskAction('verify_task', btn.dataset.taskId, btn.dataset.userId)));
       });
       document.querySelectorAll('[data-task-action="reject"]').forEach(btn => {
-        btn.addEventListener('click', () => handleTaskAction('reject_task', btn.dataset.taskId, btn.dataset.userId));
+        btn.addEventListener('click', () => guardButton(btn, 'reject:'+btn.dataset.taskId+':'+btn.dataset.userId, () => handleTaskAction('reject_task', btn.dataset.taskId, btn.dataset.userId)));
       });
       document.querySelectorAll('[data-task-action="delete"]').forEach(btn => {
-        btn.addEventListener('click', () => handleTaskAction('delete_task', btn.dataset.taskId));
+        btn.addEventListener('click', () => guardButton(btn, 'delete_task:'+btn.dataset.taskId, () => handleTaskAction('delete_task', btn.dataset.taskId)));
       });
     }
 
@@ -3037,15 +3141,17 @@
         e.stopPropagation();
         const groupId = btn.dataset.groupId;
         const userId = btn.dataset.userId;
-        try {
-          setStatus('saving');
-          await orgApiCall({ action: 'remove_account_from_group', groupId, targetUserId: userId });
-          toast('Member removed');
-          fetchGroups();
-        } catch(e) {
-          toast(e.message, 'error');
-          setStatus('ready');
-        }
+        await guardButton(btn, 'remove_member:'+groupId+':'+userId, async () => {
+          try {
+            setStatus('saving');
+            await orgApiCall({ action: 'remove_account_from_group', groupId, targetUserId: userId });
+            toast('Member removed');
+            fetchGroups();
+          } catch(e) {
+            toast(e.message, 'error');
+            setStatus('ready');
+          }
+        });
       });
     });
 
@@ -3259,6 +3365,8 @@
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmCreateTask', 'create_task');
   }
 
   async function rerollPassword(username) {
@@ -3316,6 +3424,8 @@
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmDelete', 'confirm_delete_0');
   }
 
   function openCreateGroupDialog(parentId, parentName) {
@@ -3353,6 +3463,8 @@
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmCreateGroup', 'create_group');
   }
 
   function openDeleteGroupDialog(groupId, groupName) {
@@ -3387,6 +3499,8 @@
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmDelete', 'confirm_delete_1');
   }
 
   function openAddMemberDialog(groupId) {
@@ -3640,6 +3754,8 @@
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmAddMembers', 'add_members');
   }
 
   function openAddAccountDialog() {
@@ -3960,6 +4076,8 @@ Marketing,alex99,</div>
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmAddAccount', 'add_account');
   }
 
   /* ---------- Bulk import helpers: users into existing or brand-new groups, via CSV or Excel ---------- */
@@ -4695,6 +4813,8 @@ Marketing,alex99,</div>
         setStatus('ready');
       }
     };
+
+    guardDialogButton('confirmSubmit', 'submit_task');
   }
 
   /* ---------- Tab Functionality ---------- */
