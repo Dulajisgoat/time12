@@ -1849,8 +1849,15 @@
     applyTheme(next);
     setStoredTheme(next);
   }
+
   themeToggle?.addEventListener('click', toggleTheme);
   loginThemeToggle?.addEventListener('click', toggleTheme);
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'Time12-theme' && (e.newValue === 'light' || e.newValue === 'dark')) {
+      applyTheme(e.newValue);
+    }
+  });
 
   /* ---------- Login Screen Logic ---------- */
   const loginScreen = document.getElementById('loginScreen');
