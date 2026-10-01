@@ -1788,6 +1788,82 @@
   const AUTH_API_URL = 'https://lbujqhnadkwqgojbhalw.supabase.co/functions/v1/auth';
   const ORG_API_URL = 'https://lbujqhnadkwqgojbhalw.supabase.co/functions/v1/manage-organizations';
 
+  /* ---------- File Upload / Download (upload-file & download-file edge functions) ---------- */
+  const FILE_API_URL = 'https://lbujqhnadkwqgojbhalw.supabase.co/functions/v1'; // project where upload-file/download-file are deployed
+  const FILE_LINK_PREFIX = FILE_API_URL + '/download-file/';
+  const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+  async function uploadFileToServer(file, { groupId, taskId } = {}) {
+    const token = localStorage.getItem('authToken');
+    if (!token) throw new Error('Not authenticated');
+    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`"${file.name}" is over 25 MB.`);
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    if (groupId) fd.append('group_id', groupId);
+    if (taskId) fd.append('task_id', taskId);
+    const res = await fetch(FILE_API_URL + '/upload-file', {
+      method: 'POST', mode: 'cors',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: fd
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok || !data.success) throw new Error(data.error || `Upload failed (HTTP ${res.status})`);
+    return { url: FILE_LINK_PREFIX + data.id, label: data.original_name || file.name };
+  }
+
+  async function uploadSelectedFiles(fileList, ctx) {
+    const out = [];
+    const files = Array.from(fileList || []);
+    for (let i = 0; i < files.length; i++) {
+      toast(`Uploading ${files[i].name} (${i + 1}/${files.length})…`, 'success');
+      out.push(await uploadFileToServer(files[i], ctx));
+    }
+    return out;
+  }
+
+  async function downloadFileById(fileId, fallbackName) {
+    const token = localStorage.getItem('authToken');
+    if (!token) { showLogin(); return; }
+    try {
+      toast('Downloading…', 'success');
+      const res = await fetch(FILE_LINK_PREFIX + fileId, { headers: { 'Authorization': `Bearer ${token}` }, mode: 'cors' });
+      if (!res.ok) throw new Error((await res.text().catch(() => '')) || `HTTP ${res.status}`);
+      let name = fallbackName || 'download';
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+      if (m) { try { name = decodeURIComponent(m[1]); } catch { name = m[1]; } }
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch (e) {
+      toast('Download failed: ' + e.message, 'error');
+    }
+  }
+
+  // Any link pointing at download-file is fetched with the auth header instead of opened as a plain URL.
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    if (!href.startsWith(FILE_LINK_PREFIX)) return;
+    e.preventDefault();
+    downloadFileById(href.slice(FILE_LINK_PREFIX.length).split(/[?#]/)[0], (a.textContent || '').replace(/^[^\w]+/, '').trim());
+  }, true);
+
+  function filePickerHtml(id) {
+    return `
+      <div class="dialog-input-group">
+        <label>Attach Files (Optional, max 25 MB each)</label>
+        <input type="file" id="${id}" class="dialog-input" multiple>
+      </div>`;
+  }
+
   /* ---------- Auth / Session ---------- */
   function getStoredSession() {
     try {
@@ -3293,6 +3369,8 @@
         <button class="btn-primary" id="addLinkBtn" style="margin-top:8px;">+ Add Link</button>
       </div>
 
+      ${filePickerHtml('taskFilesInput')}
+
       <div class="dialog-actions">
         <button class="btn-primary" id="cancelDialog">Cancel</button>
         <button class="btn-primary main" id="confirmCreateTask">Create</button>
@@ -3356,6 +3434,8 @@
 
       try {
         setStatus('saving');
+        const uploadedFiles = await uploadSelectedFiles(document.getElementById('taskFilesInput').files, { groupId });
+        links.push(...uploadedFiles);
         await orgApiCall({ action: 'create_task', title, description, groupId, dueDate, links });
         toast('Task created successfully!');
         closeDialog();
@@ -4767,6 +4847,8 @@ Marketing,alex99,</div>
         <button class="btn-primary" id="addLinkBtn" style="margin-top:8px;">+ Add Link</button>
       </div>
 
+      ${filePickerHtml('submitFilesInput')}
+
       <div class="dialog-actions">
         <button class="btn-primary" id="cancelDialog">Cancel</button>
         <button class="btn-primary main" id="confirmSubmit">Submit</button>
@@ -4797,13 +4879,17 @@ Marketing,alex99,</div>
         if (url) links.push({ url, label });
       });
 
-      if (!submissionText && links.length === 0) {
-        toast('Please provide text or attach a link.', 'error');
+      const pickedFiles = document.getElementById('submitFilesInput').files;
+      if (!submissionText && links.length === 0 && pickedFiles.length === 0) {
+        toast('Please provide text, a link, or a file.', 'error');
         return;
       }
 
       try {
         setStatus('saving');
+        const thisTask = (userAssignedTasks || []).find(x => String(x.taskId) === String(taskId)) || {};
+        const uploadedFiles = await uploadSelectedFiles(pickedFiles, { groupId: thisTask.groupId || thisTask.group_id || null, taskId });
+        links.push(...uploadedFiles);
         await orgApiCall({ action: 'submit_task', taskId, submissionText, links });
         toast('Task submitted successfully!');
         closeDialog();
