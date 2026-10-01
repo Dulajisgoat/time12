@@ -1859,10 +1859,69 @@
   function filePickerHtml(id) {
     return `
       <div class="dialog-input-group">
-        <label>Attach Files (Optional, max 25 MB each)</label>
-        <input type="file" id="${id}" class="dialog-input" multiple>
+        <label>Attach Files <span style="text-transform:none;letter-spacing:0;opacity:.7;">(optional, max 25 MB each)</span></label>
+        <label class="csv-dropzone" data-fp-zone="${id}" style="padding:18px;margin-bottom:0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;margin-bottom:6px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <div>Click to browse or drag &amp; drop</div>
+          <input type="file" id="${id}" data-fp multiple />
+        </label>
+        <div data-file-list="${id}" style="margin-top:8px;display:flex;flex-direction:column;gap:6px;"></div>
       </div>`;
   }
+
+  function renderPickedFiles(id) {
+    const inp = document.getElementById(id);
+    const list = document.querySelector(`[data-file-list="${id}"]`);
+    if (!inp || !list) return;
+    list.innerHTML = Array.from(inp.files).map((f, i) => {
+      const big = f.size > MAX_UPLOAD_BYTES;
+      return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-lg, 10px);font-size:13px;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--text);">${escapeHtml(f.name)}
+          <span style="font-weight:400;color:${big ? 'var(--danger, #e5484d)' : 'var(--text-muted)'};margin-left:6px;">${big ? 'too large' : (f.size / 1048576 >= 0.1 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB')}</span>
+        </span>
+        <button type="button" data-file-remove="${i}" data-file-input="${id}" aria-label="Remove" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;line-height:1;padding:0 2px;">&times;</button>
+      </div>`;
+    }).join('');
+  }
+
+  // Merge new files into the input (accumulates across picks/drops, skips duplicates)
+  function addPickedFiles(inp, newFiles) {
+    const dt = new DataTransfer();
+    [...(inp._kept || []), ...Array.from(newFiles)].forEach(f => {
+      if (!Array.from(dt.files).some(x => x.name === f.name && x.size === f.size)) dt.items.add(f);
+    });
+    inp.files = dt.files; inp._kept = Array.from(dt.files);
+    renderPickedFiles(inp.id);
+  }
+
+  document.addEventListener('click', (e) => {
+    const rm = e.target.closest && e.target.closest('[data-file-remove]');
+    if (!rm) return;
+    e.preventDefault();
+    const inp = document.getElementById(rm.dataset.fileInput);
+    const dt = new DataTransfer();
+    Array.from(inp.files).forEach((f, i) => { if (i !== Number(rm.dataset.fileRemove)) dt.items.add(f); });
+    inp.files = dt.files; inp._kept = Array.from(dt.files);
+    renderPickedFiles(inp.id);
+  });
+
+  document.addEventListener('change', (e) => {
+    const inp = e.target;
+    if (inp.matches && inp.matches('input[type="file"][data-fp]')) addPickedFiles(inp, inp.files);
+  });
+
+  ['dragover', 'dragleave', 'drop'].forEach(evt => document.addEventListener(evt, (e) => {
+    const zone = e.target.closest && e.target.closest('[data-fp-zone]');
+    if (!zone) return;
+    e.preventDefault();
+    zone.classList.toggle('dragover', evt === 'dragover');
+    if (evt === 'drop' && e.dataTransfer && e.dataTransfer.files.length) {
+      addPickedFiles(document.getElementById(zone.dataset.fpZone), e.dataTransfer.files);
+    }
+  }));
 
   /* ---------- Auth / Session ---------- */
   function getStoredSession() {
