@@ -1,4 +1,4 @@
 User-agent: *
 Disallow: 
 
-Sitemap: https://time12.xin
+Sitemap: https://time12.xin/sitemap.xml
